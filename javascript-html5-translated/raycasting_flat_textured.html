@@ -1,0 +1,342 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>Raycaster flat</title>
+    <style type="text/css">
+      canvas { 
+        border: 1px solid black;
+      }
+      html {
+        width: 100%;
+        height: 100%;
+        background: rgb(10, 10, 10);
+        overflow:hidden;
+      }
+      body {
+        margin: 0px;
+        border: None;
+      }
+      canvas#screen {
+        margin: 0px;
+        border: None;
+      }
+      img.shadow {
+        display: none;
+      }
+    </style>
+  </head>
+  <body onload="start();">
+    <canvas id="screen" width="640px" height="480px">Your browser must support canvas to play.</canvas> <!-- 512px 384px -->
+    <script type="text/javascript">
+    
+/*
+Copyright (c) 2004-2007, Lode Vandevenne
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+// https://lodev.org/cgtutor/raycasting.html
+
+  const texWidth = 64;
+  const texHeight = 64;
+  const mapWidth = 24;
+  const mapHeight = 24; 
+  
+  var worldMap = [
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,2,2,2,2,2,0,0,0,0,3,0,3,0,3,0,0,0,1],
+    [1,0,0,0,0,0,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,2,0,0,0,2,0,0,0,0,3,0,0,0,3,0,0,0,1],
+    [1,0,0,0,0,0,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,2,2,0,2,2,0,0,0,0,3,0,3,0,3,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,4,4,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,4,0,4,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,4,0,0,0,0,5,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,4,0,4,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,4,0,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,4,4,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  ];
+
+  var posX = 22, posY = 12;  //x and y start position
+  var dirX = -1, dirY = 0; //initial direction vector
+  var planeX = 0, planeY = 0.66; //the 2d raycaster version of camera plane
+  
+  var screen;
+  const w = 640; //512;
+  const h = 480; //384;
+  var ctx;
+  
+  // buffer canvas
+  var buffer = document.createElement('canvas');
+  buffer.width = w;
+  buffer.height = h;
+  var ctx2 = buffer.getContext('2d');
+
+  var keys_down = {
+    'ArrowUp' : false,
+    'ArrowDown' : false,
+    'ArrowRight' : false,
+    'ArrowLeft' : false
+  };
+
+  let texture = [];
+  for(let t = 0; t < 8; t++) 
+  {
+    let a = [];
+    for (let i = 0; i < texWidth * texHeight; i++)
+    {
+      a.push(0);
+    }
+    texture.push(a);
+  }
+  
+  //generate some texture
+  for (let x = 0; x < texWidth; x++)
+  {
+    for (let y = 0; y < texHeight; y++)
+    {
+      let xorcolor = Math.floor((x * 256 / texWidth) ^ (y * 256 / texHeight));
+      //int xcolor = x * 256 / texWidth;
+      let ycolor = Math.floor(y * 256 / texHeight);
+      let xycolor = Math.floor(y * 128 / texHeight + x * 128 / texWidth);
+      texture[0][texWidth * y + x] = 65536 * 254 * (x != y && x != texWidth - y); //flat red texture with black cross
+      texture[1][texWidth * y + x] = xycolor + 256 * xycolor + 65536 * xycolor; //sloped greyscale
+      texture[2][texWidth * y + x] = 256 * xycolor + 65536 * xycolor; //sloped yellow gradient
+      texture[3][texWidth * y + x] = xorcolor + 256 * xorcolor + 65536 * xorcolor; //xor greyscale
+      texture[4][texWidth * y + x] = 256 * xorcolor; //xor green
+      texture[5][texWidth * y + x] = 65536 * 192 * (x % 16 && y % 16); //red bricks
+      texture[6][texWidth * y + x] = 65536 * ycolor; //red gradient
+      texture[7][texWidth * y + x] = 128 + 256 * 128 + 65536 * 128; //flat grey texture
+    }
+  }
+  
+  function start() {
+    screen = document.getElementById('screen');
+    ctx = screen.getContext('2d', { alpha: false });
+    //screen.onmousemove = on_mouse_move;
+    //window.onclick = on_mouse_left_click;
+    //window.oncontextmenu = on_mouse_right_click;
+    window.onkeydown = on_key_down;
+    window.onkeyup = on_key_up;
+    window.setInterval(run, 33);
+    run();
+  }
+  
+  function on_key_up(event) {
+    event = window.event || event;
+    if (event.key in keys_down) {
+      keys_down[event.key] = false;
+    } else if (event.key == 'n') {
+      //show_number = ! show_number;
+    } else if (event.key == 'g') {
+      //show_grid = ! show_grid
+    } else {
+      console.log('Unbound up key:', event.key);
+    }
+  }
+  
+  function on_key_down(event){
+    event = window.event || event;
+    if (event.key in keys_down) {
+      keys_down[event.key] = true;
+    } else {
+      console.log('Unbound down key:', event.key);
+    }
+  }
+
+  function run() {
+     update();
+     draw();
+  }
+  
+  function draw()
+  {
+    ctx.clearRect(0, 0, w, h);
+    ctx2.clearRect(0, 0, w, h);
+    for(let x = 0; x < w; x++)
+    {
+      //calculate ray position and direction
+      let cameraX = 2 * x / w - 1; //x-coordinate in camera space
+      let rayDirX = dirX + planeX * cameraX;
+      let rayDirY = dirY + planeY * cameraX;
+      //which box of the map we're in
+      let mapX = Math.floor(posX);
+      let mapY = Math.floor(posY);
+
+      //length of ray from current position to next x or y-side
+      let sideDistX;
+      let sideDistY;
+
+       //length of ray from one x or y-side to next x or y-side
+      let deltaDistX = Math.abs(1 / rayDirX);
+      let deltaDistY = Math.abs(1 / rayDirY);
+      let perpWallDist;
+
+      //what direction to step in x or y-direction (either +1 or -1)
+      let stepX;
+      let stepY;
+
+      let hit = 0; //was there a wall hit?
+      let side; //was a NS or a EW wall hit?
+      //calculate step and initial sideDist
+      if (rayDirX < 0)
+      {
+        stepX = -1;
+        sideDistX = (posX - mapX) * deltaDistX;
+      }
+      else
+      {
+        stepX = 1;
+        sideDistX = (mapX + 1.0 - posX) * deltaDistX;
+      }
+      if (rayDirY < 0)
+      {
+        stepY = -1;
+        sideDistY = (posY - mapY) * deltaDistY;
+      }
+      else
+      {
+        stepY = 1;
+        sideDistY = (mapY + 1.0 - posY) * deltaDistY;
+      }
+      //perform DDA
+      while (hit == 0)
+      {
+        //jump to next map square, OR in x-direction, OR in y-direction
+        if (sideDistX < sideDistY)
+        {
+          sideDistX += deltaDistX;
+          mapX += stepX;
+          side = 0;
+        }
+        else
+        {
+          sideDistY += deltaDistY;
+          mapY += stepY;
+          side = 1;
+        }
+        //Check if ray has hit a wall
+        if (worldMap[mapX][mapY] > 0) hit = 1;
+      }
+      //Calculate distance projected on camera direction (Euclidean distance will give fisheye effect!)
+      if (side == 0) perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
+      else           perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
+
+      //Calculate height of line to draw on screen
+      let lineHeight = Math.floor(h / perpWallDist);
+
+      //calculate lowest and highest pixel to fill in current stripe
+      let drawStart = Math.floor(-lineHeight / 2 + h / 2);
+      if(drawStart < 0)drawStart = 0;
+      let drawEnd = Math.floor(lineHeight / 2 + h / 2);
+      if(drawEnd >= h)drawEnd = h - 1;
+
+      //texturing calculations
+      let texNum = worldMap[mapX][mapY] - 1; //1 subtracted from it so that texture 0 can be used!
+
+      //calculate value of wallX
+      let wallX; //where exactly the wall was hit
+      if (side == 0) wallX = posY + perpWallDist * rayDirY;
+      else           wallX = posX + perpWallDist * rayDirX;
+      wallX -= Math.floor((wallX));
+
+      //x coordinate on the texture
+      let texX = Math.floor(wallX * texWidth);
+      if (side == 0 && rayDirX > 0) texX = texWidth - texX - 1;
+      if (side == 1 && rayDirY < 0) texX = texWidth - texX - 1;
+      
+      for (let y = drawStart; y < drawEnd; y++)
+      {
+        let d = y * 256 - h * 128 + lineHeight * 128;  //256 and 128 factors to avoid floats
+        // TODO: avoid the division to speed this up
+        let texY = Math.floor(((d * texHeight) / lineHeight) / 256);
+        let color = texture[texNum][texHeight * texY + texX];
+        //make color darker for y-sides: R, G and B byte each divided through two with a "shift" and an "and"
+        if (side == 1) color = (color >> 1) & 8355711;
+        
+        let r = Math.floor((color >> 16) & 0xff);
+        let g = Math.floor((color >>  8) & 0xff);
+        let b = Math.floor((color      ) & 0xff);
+        //let a = ((color >> 24) & 0xff) / 255.0f;
+    
+        ctx2.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+        ctx2.fillRect(x, y, 1, 1);
+      }
+    }
+    ctx.drawImage(buffer, 0, 0);
+  }
+  
+  function update() { 
+  
+    //speed modifiers
+    let moveSpeed = (1/33) * 5.0; //the constant value is in squares/second
+    let rotSpeed = (1/33) * 3.0; //the constant value is in radians/second
+    
+    //move forward if no wall in front of you
+    if (keys_down['ArrowUp'])
+    {
+      if(worldMap[Math.floor(posX + dirX * moveSpeed)][Math.floor(posY)] == false) posX += dirX * moveSpeed;
+      if(worldMap[Math.floor(posX)][Math.floor(posY + dirY * moveSpeed)] == false) posY += dirY * moveSpeed;
+    }
+    //move backwards if no wall behind you
+    if (keys_down['ArrowDown'])
+    {
+      if(worldMap[Math.floor(posX - dirX * moveSpeed)][Math.floor(posY)] == false) posX -= dirX * moveSpeed;
+      if(worldMap[Math.floor(posX)][Math.floor(posY - dirY * moveSpeed)] == false) posY -= dirY * moveSpeed;
+    }
+    //rotate to the right
+    if (keys_down['ArrowRight'])
+    {
+      //both camera direction and camera plane must be rotated
+      let oldDirX = dirX;
+      dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
+      dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
+      let oldPlaneX = planeX;
+      planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
+      planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
+    }
+    //rotate to the left
+    if (keys_down['ArrowLeft'])
+    {
+      //both camera direction and camera plane must be rotated
+      let oldDirX = dirX;
+      dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
+      dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
+      let oldPlaneX = planeX;
+      planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
+      planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
+    }
+  }
+    </script>
+  </body>
+</html>
