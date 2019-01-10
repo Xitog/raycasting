@@ -109,6 +109,20 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     'ArrowLeft' : false
   };
 
+  var conversion = {};
+  function i2c (color) {
+    if (color in conversion) {
+      return conversion[color];
+    } else {
+      let r = Math.floor((color >> 16) & 0xff);
+      let g = Math.floor((color >>  8) & 0xff);
+      let b = Math.floor((color      ) & 0xff);
+      //let a = ((color >> 24) & 0xff) / 255.0f;
+      conversion[color] = 'rgb(' + r + ',' + g + ',' + b + ')';
+      return conversion[color];
+    }
+  }
+  
   let texture = [];
   for(let t = 0; t < 8; t++) 
   {
@@ -138,6 +152,33 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
       texture[6][texWidth * y + x] = 65536 * ycolor; //red gradient
       texture[7][texWidth * y + x] = 128 + 256 * 128 + 65536 * 128; //flat grey texture
     }
+  }
+  
+  fasttex = [];
+  fasttex_dark = [];
+  //generate the texture in a canvas
+  for (let t = 0; t < 8; t++) {
+    let b = document.createElement('canvas');
+    let b_dark = document.createElement('canvas');
+    b.width = texWidth;
+    b.height = texHeight;
+    b_dark.width = texWidth;
+    b_dark.height = texHeight;
+    let c = b.getContext('2d');
+    let c_dark = b_dark.getContext('2d');
+    for (let x = 0; x < texWidth; x++) {
+      for (let y = 0; y < texHeight; y++) {
+        color = texture[t][texHeight * y + x];
+        c.fillStyle = i2c(color);
+        c.fillRect(x, y, 1, 1);
+        // dark
+        color = (color >> 1) & 8355711;
+        c_dark.fillStyle = i2c(color);
+        c_dark.fillRect(x, y, 1, 1);
+      }
+    }
+    fasttex.push(b);
+    fasttex_dark.push(b_dark);
   }
   
   function start() {
@@ -257,9 +298,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
       //calculate lowest and highest pixel to fill in current stripe
       let drawStart = Math.floor(-lineHeight / 2 + h / 2);
-      if(drawStart < 0)drawStart = 0;
+      //if(drawStart < 0)drawStart = 0;
       let drawEnd = Math.floor(lineHeight / 2 + h / 2);
-      if(drawEnd >= h)drawEnd = h - 1;
+      //if(drawEnd >= h)drawEnd = h - 1;
 
       //texturing calculations
       let texNum = worldMap[mapX][mapY] - 1; //1 subtracted from it so that texture 0 can be used!
@@ -277,6 +318,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
       
       for (let y = drawStart; y < drawEnd; y++)
       {
+        let image = fasttex[texNum];
+        if (side == 1) image = fasttex_dark[texNum];
+        ctx2.drawImage(image, texX, 0, 1, texHeight, x, drawStart, 1, drawEnd - drawStart);
+        
+        /*
         let d = y * 256 - h * 128 + lineHeight * 128;  //256 and 128 factors to avoid floats
         // TODO: avoid the division to speed this up
         let texY = Math.floor(((d * texHeight) / lineHeight) / 256);
@@ -286,23 +332,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         
         ctx2.fillStyle = i2c(color);
         ctx2.fillRect(x, y, 1, 1);
+        */
       }
     }
     ctx.drawImage(buffer, 0, 0);
-  }
-  
-  var conversion = {};
-  function i2c (color) {
-    if (color in conversion) {
-      return conversion[color];
-    } else {
-      let r = Math.floor((color >> 16) & 0xff);
-      let g = Math.floor((color >>  8) & 0xff);
-      let b = Math.floor((color      ) & 0xff);
-      //let a = ((color >> 24) & 0xff) / 255.0f;
-      conversion[color] = 'rgb(' + r + ',' + g + ',' + b + ')';
-      return conversion[color];
-    }
   }
   
   function update() { 
