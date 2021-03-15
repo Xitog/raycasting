@@ -1,0 +1,138 @@
+# 
+# FICHIER DE PROJET construit par "Pelles C pour Windows, version 8.00".
+# AVERTISSEMENT! NE PAS MODIFIER CE FICHIER.
+# 
+
+POC_PROJECT_VERSION = 7.00#
+POC_PROJECT_TYPE = 3#
+POC_PROJECT_OUTPUTDIR = output#
+POC_PROJECT_RESULTDIR = .#
+POC_PROJECT_ARGUMENTS = #
+POC_PROJECT_WORKPATH = .#
+POC_PROJECT_EXECUTOR = #
+POC_PROJECT_ZIPEXTRA = #
+CC = pocc.exe#
+AS = poasm.exe#
+RC = porc.exe#
+LINK = polink.exe#
+SIGN = posign.exe#
+CCFLAGS = -std:C11 -Tx86-coff -Ot -Ob1 -fp:precise -W1 -Gd -Ze#
+ASFLAGS = -AIA32 -Gd#
+RCFLAGS = #
+LINKFLAGS = -subsystem:console -machine:x86 kernel32.lib advapi32.lib delayimp.lib sdlmain.lib sdl.lib#
+SIGNFLAGS = -timeurl:http://timestamp.verisign.com/scripts/timstamp.dll -location:CU -store:MY -errkill#
+INCLUDE = $(PellesCDir)\Include\Win;$(PellesCDir)\Include;include\sdl_1.2.15#
+LIB = $(PellesCDir)\Lib\Win;$(PellesCDir)\Lib;lib\sdl_1.2.15\x86#
+
+# 
+# Construction de Woolfy.exe.
+# 
+Woolfy.exe: \
+	output\draw.obj \
+	output\event.obj \
+	output\game.obj \
+	output\main.obj
+	$(LINK) $(LINKFLAGS) -out:"$@" $**
+
+# 
+# Construction de draw.obj.
+# 
+output\draw.obj: \
+	draw.c \
+	draw.h
+	$(CC) $(CCFLAGS) "$!" -Fo"$@"
+
+# 
+# Construction de event.obj.
+# 
+output\event.obj: \
+	event.c \
+	event.h
+	$(CC) $(CCFLAGS) "$!" -Fo"$@"
+
+# 
+# Construction de game.obj.
+# 
+output\game.obj: \
+	game.c \
+	draw.h \
+	event.h \
+	game.h \
+	include\sdl_1.2.15\begin_code.h \
+	include\sdl_1.2.15\close_code.h \
+	include\sdl_1.2.15\sdl.h \
+	include\sdl_1.2.15\SDL_active.h \
+	include\sdl_1.2.15\SDL_audio.h \
+	include\sdl_1.2.15\SDL_cdrom.h \
+	include\sdl_1.2.15\SDL_config.h \
+	include\sdl_1.2.15\SDL_config_minimal.h \
+	include\sdl_1.2.15\SDL_cpuinfo.h \
+	include\sdl_1.2.15\SDL_endian.h \
+	include\sdl_1.2.15\SDL_error.h \
+	include\sdl_1.2.15\SDL_events.h \
+	include\sdl_1.2.15\SDL_joystick.h \
+	include\sdl_1.2.15\SDL_keyboard.h \
+	include\sdl_1.2.15\SDL_keysym.h \
+	include\sdl_1.2.15\SDL_loadso.h \
+	include\sdl_1.2.15\SDL_main.h \
+	include\sdl_1.2.15\SDL_mouse.h \
+	include\sdl_1.2.15\SDL_mutex.h \
+	include\sdl_1.2.15\SDL_platform.h \
+	include\sdl_1.2.15\SDL_quit.h \
+	include\sdl_1.2.15\SDL_rwops.h \
+	include\sdl_1.2.15\SDL_stdinc.h \
+	include\sdl_1.2.15\SDL_thread.h \
+	include\sdl_1.2.15\SDL_timer.h \
+	include\sdl_1.2.15\SDL_version.h \
+	include\sdl_1.2.15\SDL_video.h
+	$(CC) $(CCFLAGS) "$!" -Fo"$@"
+
+# 
+# Construction de main.obj.
+# 
+output\main.obj: \
+	main.c \
+	draw.h \
+	event.h \
+	game.h \
+	include\sdl_1.2.15\begin_code.h \
+	include\sdl_1.2.15\close_code.h \
+	include\sdl_1.2.15\sdl.h \
+	include\sdl_1.2.15\SDL_active.h \
+	include\sdl_1.2.15\SDL_audio.h \
+	include\sdl_1.2.15\SDL_cdrom.h \
+	include\sdl_1.2.15\SDL_config.h \
+	include\sdl_1.2.15\SDL_config_minimal.h \
+	include\sdl_1.2.15\SDL_cpuinfo.h \
+	include\sdl_1.2.15\SDL_endian.h \
+	include\sdl_1.2.15\SDL_error.h \
+	include\sdl_1.2.15\SDL_events.h \
+	include\sdl_1.2.15\SDL_joystick.h \
+	include\sdl_1.2.15\SDL_keyboard.h \
+	include\sdl_1.2.15\SDL_keysym.h \
+	include\sdl_1.2.15\SDL_loadso.h \
+	include\sdl_1.2.15\SDL_main.h \
+	include\sdl_1.2.15\SDL_mouse.h \
+	include\sdl_1.2.15\SDL_mutex.h \
+	include\sdl_1.2.15\SDL_platform.h \
+	include\sdl_1.2.15\SDL_quit.h \
+	include\sdl_1.2.15\SDL_rwops.h \
+	include\sdl_1.2.15\SDL_stdinc.h \
+	include\sdl_1.2.15\SDL_thread.h \
+	include\sdl_1.2.15\SDL_timer.h \
+	include\sdl_1.2.15\SDL_version.h \
+	include\sdl_1.2.15\SDL_video.h
+	$(CC) $(CCFLAGS) "$!" -Fo"$@"
+
+# 
+# Construction de minisdl.obj.
+# 
+output\minisdl.obj: \
+	minisdl.c \
+	minisdl.h
+	$(CC) $(CCFLAGS) "$!" -Fo"$@"
+
+.EXCLUDEDFILES: \
+	output\minisdl.obj
+
+.SILENT:

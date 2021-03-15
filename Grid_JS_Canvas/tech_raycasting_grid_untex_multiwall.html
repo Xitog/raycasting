@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="fr" onmouseleave="out();" onmouseenter="inside();">
+  <head>
+    <meta charset="utf-8">
+    <title>FPS 2.5D Untextured multiwall</title>
+    <script type="text/javascript" src="common.js"></script>
+    <style>
+        html, body, table {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+        }
+        h1 {
+            font-family: "Open Sans";
+            font-weight: 200;
+            text-decoration: underline #2830FF;
+        }
+    </style>
+  </head>
+  <body onload="start();">
+    <table style="text-align:center;"><tr><td>
+      <h1>Raycasting 1: Grid - Untextured - One wall/case</h1>
+      <canvas id="screen2D" width="640" height="480">
+      </canvas>
+      &nbsp;
+      <canvas id="screen3D" width="640" height="480">
+      </canvas>
+      <br>
+      <form id="mainform">
+        x = <input id="x" type="text" value="9.5"/>
+        y = <input id="y" type="text" value="12"/>
+        a = <input id="a" type="text" value="0"/>
+        <input type="button" value="-" onclick="less('ang');"/>
+        <input type="button" value="+" onclick="more('ang');"/>
+        <i>(in degree)</i>
+        <input type="button" value="ok" onclick="change();"/>
+        <input type="checkbox" id="raycolor" name="raycolor" onclick="opt_monochromic_ray();"> 
+        <label for="raycolor">Monochromic rays</label>
+        <input type="checkbox" id="wallcolor" name="wallcolor" onclick="opt_monochromic_wall();"> 
+        <label for="wallcolor">Monochromic walls</label>
+        <input type="checkbox" id="gamemode" name="gamemode" onclick="opt_game_mode();"> 
+        <label for="gamemode">Game mode [a]</label>
+        <input type="checkbox" id="bb" name="bb" onclick="opt_biback();"> 
+        <label for="gamemode">Bicolor background</label>
+      </form>
+      <div id="presstab" style="display: none;">Press the [a] key to come back to normal mode</div>
+    </td></tr></table>
+    
+    <script type="text/javascript">
+    //---------------------------------------------------------------------------------------------
+    // Raycasting engine
+    //---------------------------------------------------------------------------------------------
+    // - JavaScript + Canvas HTML
+    // - Grid based
+    // - Untextured
+    // - One wall per case
+    //---------------------------------------------------------------------------------------------
+    // Made from scratch the 23th, 27th and 28th of April 2020.
+    // Made in three steps: DDA (the 23th), ray cast, computation of the orthogonal distance.
+    // I found that my DDA gives directly the orthogonal distance.
+    // The casting of rays is based on the addition of a dir vector and a fraction of camera vector.
+    // deg * 0,0174533 = rad
+    //---------------------------------------------------------------------------------------------
+    // April-June 2020
+    // Damien Gouteux MIT Licence
+    //---------------------------------------------------------------------------------------------
+    
+    const INTERVAL = 33;
+    
+    var player_x = getFloat("x");
+    var player_y = getFloat("y");
+    var player_a = 90 * 0.01745;
+    var cos_a = Math.cos(player_a);
+    var sin_a = Math.sin(player_a);
+    var player_fov = 66 * 0.01745;
+    var cam_x;
+    var cam_y;
+    var cam_norm = Math.tan(player_fov / 2);
+    
+    var right = false;
+    var left = false;
+    var down = false;
+    var up = false;
+    
+    var move_speed = (1/INTERVAL) * 5.0; // 0.01
+    var rot_speed = (1/INTERVAL) * 3.0;  // 0.05
+  
+    var pause = false;
+    
+    var intersections;
+    
+    const SCREEN_WIDTH = 640;
+    const SCREEN_HEIGHT = 480;
+    
+    var colors = ['black', 'red', 'purple', 'yellow', 'green'];
+    
+    var map = [
+        // Row 1
+        [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], 
+         [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1],
+         [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], 
+         [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]],
+        // Row 2
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 3
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 4
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 5
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 6
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 7
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 8
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 9
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [1, 2, 3, 4], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 10
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 11
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 12
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 13
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 14
+        [[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], 
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+         [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 1, 1, 1]],
+        // Row 15
+        [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], 
+         [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1],
+         [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], 
+         [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]]
+    ];
+    
+    function get_case(x, y, on_x, pos) {
+        if (on_x && pos) {
+            return map[y][x][0];
+        } else if (on_x) {
+            return map[y][x][2];
+        } else if (pos) {
+            return map[y][x][1];
+        } else {
+            return map[y][x][3];
+        }
+    }
+    
+    function empty_case(x, y) {
+        return (map[y][x][0] == 0 && map[y][x][1] == 0 && map[y][x][2] == 0 && map[y][x][3] == 0);
+    }
+    
+    //-------------------------------------------------------------------------
+    // GUI interactions
+    //-------------------------------------------------------------------------
+    
+    var opt_monochromic_ray_val = false;
+    function opt_monochromic_ray() {
+        opt_monochromic_ray_val = getBool('raycolor');
+    }
+    
+    var opt_monochromic_wall_val = false;
+    function opt_monochromic_wall() {
+        opt_monochromic_wall_val = getBool('wallcolor');
+    }
+    
+    var opt_game_mode_val = false;
+    function opt_game_mode() {
+        if (opt_game_mode_val) {
+            get("screen2D").style.display = "inline";
+            get("mainform").style.display = "block";
+            get("presstab").style.display = "none";
+            opt_game_mode_val = false;
+            setBool("gamemode", opt_game_mode_val);
+        } else {
+            get("screen2D").style.display = "none";
+            get("mainform").style.display = "none";
+            get("presstab").style.display = "block";
+            opt_game_mode_val = true;
+            setBool("gamemode", opt_game_mode_val);
+        }
+    }
+    
+    var opt_biback_val = false;
+    function opt_biback() {
+        opt_biback_val = getBool("bb");
+    }
+    
+    function less(p) {
+        if (p === 'ang') {
+            player_a -= 15 * 0.01745;
+            cos_a = Math.cos(player_a);
+            sin_a = Math.sin(player_a);
+            setFloat("a", player_a * 57.2958);
+        }
+    }
+    
+    function more(p) {
+        if (p === 'ang') {
+            player_a += 15 * 0.01745;
+            cos_a = Math.cos(player_a);
+            sin_a = Math.sin(player_a);
+            setFloat("a", player_a * 57.2958);
+        }
+    }
+    
+    function change() {
+        player_a = getFloat("a") * 0.01745; // in rad
+        player_x = getFloat("x");
+        player_y = getFloat("y");
+        cos_a = Math.cos(player_a);
+        sin_a = Math.sin(player_a);
+    }
+    
+    //-------------------------------------------------------------------------
+    // Start and run functions
+    //-------------------------------------------------------------------------
+    
+    function start() {
+        window.onkeydown = on_key_down;
+        window.onkeyup = on_key_up;
+        window.setInterval(run, INTERVAL);
+        document.mouseout = out;
+        document.mouseleave = out;
+        // When you reload the page it must be set again
+        setBool("bb", opt_biback_val);
+        setBool("gamemode", opt_game_mode_val);
+        setBool('raycolor', opt_monochromic_ray_val);
+        setBool('wallcolor', opt_monochromic_wall_val);
+    }
+    
+    function run() {
+        update();
+        draw();
+    }
+
+    //-------------------------------------------------------------------------
+    // Player input handling
+    //-------------------------------------------------------------------------
+    
+    function inside() {
+        pause = false;
+    }
+    
+    function out() {
+        right = false;
+        left = false;
+        down = false;
+        up = false;
+        pause = true;
+    }
+    
+    function on_key_down(event) {
+        if (pause) { return; }
+        switch (event.key) {
+            case 's': down = true; break;
+            case 'z': up = true; break;
+            case 'q': left = true; break;
+            case 'd': right = true; break;
+        }
+    }
+    
+    function on_key_up(event) {
+        if (pause) { return; }
+        switch (event.key) {
+            case 's': down = false; break;
+            case 'z': up = false; break;
+            case 'q': left = false; break;
+            case 'd': right = false; break;
+            case 'a': opt_game_mode();
+            default: console.log(event.key);
+        }
+    }
+    
+    //-------------------------------------------------------------------------
+    // Update function
+    //-------------------------------------------------------------------------
+    
+    function update() {
+        let next_x = player_x;
+        let next_y = player_y;
+        if (down) {
+            next_x -= cos_a * move_speed;
+            next_y -= sin_a * move_speed;
+        }
+        if (up) {
+            next_x += cos_a * move_speed;
+            next_y += sin_a * move_speed;
+        }
+        if (right) {
+            player_a += rot_speed
+            cos_a = Math.cos(player_a);
+            sin_a = Math.sin(player_a);
+        }
+        if (left) {
+            player_a -= rot_speed;
+            cos_a = Math.cos(player_a);
+            sin_a = Math.sin(player_a);
+        }
+        let next_x_map = Math.trunc(next_x);
+        let next_y_map = Math.trunc(next_y);
+        let player_x_map = Math.trunc(player_x);
+        let player_y_map = Math.trunc(player_y);
+        if (!empty_case(next_x_map, next_y_map)) {
+            if (empty_case(player_x_map, next_y_map)) {
+                player_y = next_y;
+            } else if (empty_case(player_x_map, next_y_map) == 0) {
+                player_x = next_x;
+            }
+        } else {
+            player_x = next_x;
+            player_y = next_y;
+        }
+    }
+    
+    //-------------------------------------------------------------------------
+    // Calc
+    //-------------------------------------------------------------------------
+    
+    function calc() {
+        // Results will be stored here
+        intersections = [];
+        // Camera Plane Calculating
+        cam_x = -sin_a * cam_norm;
+        cam_y = cos_a * cam_norm;
+        // Rays
+        for (let col = 0; col < SCREEN_WIDTH; col++) {
+            let factor = (col / SCREEN_WIDTH) * 2 - 1;
+            let ray_x = cos_a + factor * cam_x;
+            let ray_y = sin_a + factor * cam_y;
+            
+            // DDA calc
+            let delta_x;
+            let step_map_x;
+            if (ray_x < 0) {
+                delta_x = Math.abs((player_x - Math.floor(player_x)) / ray_x);
+                step_map_x = -1;
+            } else {
+                delta_x = Math.abs((Math.floor(player_x) + 1 - player_x) / ray_x);
+                step_map_x = 1
+            }
+            let delta_y;
+            let step_map_y;
+            if (ray_y < 0) {
+                delta_y = Math.abs((player_y - Math.floor(player_y)) / ray_y);
+                step_map_y = -1;
+            } else {
+                delta_y = Math.abs((Math.floor(player_y) + 1 - player_y) / ray_y);
+                step_map_y = 1;
+            }
+            
+            let map_x = Math.floor(player_x);
+            let map_y = Math.floor(player_y);
+            
+            let distance_x = Math.abs(1 / ray_x);
+            let distance_y = Math.abs(1 / ray_y);
+            
+            let step_x = delta_x;
+            let step_y = delta_y;
+
+            let cumul_x = 0;
+            let cumul_y = 0;
+            
+            let on_x = false; // if we are breaking in by x or y
+            
+            while (map_x >= 0 && map_y >= 0 && map_x < 20 && map_y < 15) {
+              val = get_case(map_x, map_y, on_x, (on_x ? step_map_x > 0: step_map_y > 0))
+              if (val != 0) {
+                break;
+              }
+              if (cumul_x + step_x < cumul_y + step_y) {
+                cumul_x += step_x;
+                step_x = distance_x;
+                map_x += step_map_x;
+                on_x = true;
+              } else {
+                cumul_y += step_y;
+                step_y = distance_y;
+                map_y += step_map_y;
+                on_x = false;
+              }
+            }
+            // Distance
+            let dist;
+            let point;
+            if (on_x) {
+                dist = cumul_x;
+                if (ray_x < 0) {
+                    point = [map_x + 1, player_y + ray_y * cumul_x];
+                } else {
+                    point = [map_x, player_y + ray_y * cumul_x];
+                }
+            } else {
+                dist = cumul_y;
+                if (ray_y < 0) {
+                    point = [player_x + ray_x * cumul_y, map_y + 1];
+                } else {
+                    point = [player_x + ray_x * cumul_y, map_y];
+                }
+            }
+            
+            let pos = (on_x ? ray_x > 0 : ray_y > 0);
+            let color = (opt_monochromic_wall_val ? 'lightblue' : colors[get_case(map_x, map_y, on_x, pos)]);
+            let raycolor = (opt_monochromic_ray_val ? 'lightblue' : colors[get_case(map_x, map_y, on_x, pos)]);
+            
+            intersections.push({
+                dist: dist, 
+                point: {x: point[0], y: point[1]},
+                cas: {x: map_x, y: map_y},
+                raycolor: raycolor,
+                color: color
+            });
+        }
+    }
+    
+    //-------------------------------------------------------------------------
+    // Draw functions
+    //-------------------------------------------------------------------------
+    
+    function draw() {
+        calc();
+        if (!opt_game_mode_val) {
+            let infos = init("screen2D");
+            draw2D(infos.context);
+        }
+        infos = init("screen3D");
+        draw3D(infos.context);
+    }
+
+    function draw2D(ctx) {
+        // Background
+        rect(ctx, 'lightgrey', 0, 0, 640, 480, true);
+        rect(ctx, 'black', 0, 0, 639, 479, false);
+        // Player
+        circle(ctx, 'red', player_x * 32, player_y * 32, 32);
+        // Dir
+        line(ctx, 'red', 
+            player_x * 32, 
+            player_y * 32, 
+            (player_x + cos_a) * 32,
+            (player_y + sin_a) * 32
+        );
+        // Rays
+        for (let col = 0; col < SCREEN_WIDTH; col++) {
+            line(ctx, intersections[col].raycolor,
+                player_x * 32,
+                player_y * 32, 
+                intersections[col].point.x * 32, 
+                intersections[col].point.y * 32
+            );
+        }
+        // Camera Plane Drawing
+        line(ctx, 'yellow',
+            (player_x + cos_a) * 32, 
+            (player_y + sin_a) * 32, 
+            (player_x + cos_a + cam_x) * 32, 
+            (player_y + sin_a + cam_y) * 32
+        );
+        line(ctx, 'yellow', 
+            (player_x + cos_a) * 32, 
+            (player_y + sin_a) * 32, 
+            (player_x + cos_a - cam_x) * 32, 
+            (player_y + sin_a - cam_y) * 32
+        );
+        
+        line(ctx, 'yellow',
+            player_x * 32, 
+            player_y * 32, 
+            (player_x + cos_a + cam_x) * 32, 
+            (player_y + sin_a + cam_y) * 32
+        );
+        line(ctx, 'yellow',
+            player_x * 32, 
+            player_y * 32, 
+            (player_x + cos_a - cam_x) * 32, 
+            (player_y + sin_a - cam_y) * 32
+        );
+        // Grid Drawing
+        for (let row=0; row < 15; row++) {
+          line(ctx, 'black', 0, row * 32, 639, row * 32);
+        }
+        
+        for (let col=0; col < 20; col++) {
+          line(ctx, 'black', col * 32, 0, col * 32, 479);
+        }
+        for (let row=0; row < 15; row++) {
+            for (let col=0; col < 20; col++) {
+                if (!empty_case(col, row)) {
+                    rect(ctx, 'red', col * 32, row * 32, 32, 32, true);
+                }
+            }
+        }
+    }
+    
+    function draw3D(ctx) {
+        if (!opt_biback_val) {
+            rect(ctx, 'black', 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, true);
+        } else {
+            rect(ctx, 'lightgrey', 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT / 2, true);
+            rect(ctx, 'dimgrey', 0, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT / 2, true);
+        }
+
+        for (let col=0; col < SCREEN_WIDTH; col++) {
+            let halfsize = Math.trunc((SCREEN_HEIGHT / intersections[col].dist) / 2);
+            line(ctx, intersections[col].color, col, SCREEN_HEIGHT / 2 - halfsize, col, SCREEN_HEIGHT / 2 + halfsize);
+        }
+        
+        let v_x = player_x.toFixed(2).padStart(5);
+        let v_y = player_y.toFixed(2).padStart(5);
+        let v_a = player_a.toFixed(2).padStart(5);
+        
+        text(ctx, "x = " + v_x, "10px Arial", 'yellow', 10, 10, true);
+        text(ctx, "y = " + v_y, "10px Arial", 'yellow', 10, 20, true);
+        text(ctx, "a = " + v_a, "10px Arial", 'yellow', 10, 30, true);
+        
+        setFloat("a", (v_a / 0.01745).toFixed(2).padStart(5));
+        setFloat("x", v_x);
+        setFloat("y", v_y);
+    }
+        
+    </script>
+  </body>
+</html>
